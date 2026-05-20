@@ -4,20 +4,18 @@ import Login from './Login'
 import GameCanvas from './GameCanvas'
 
 const DEFAULT_ROOMS = [
-  { id:'etsy1', label:'ETSY-01', sublabel:'Print on demand', active:false, revenue:3200 },
-  { id:'etsy2', label:'ETSY-02', sublabel:'Niche store', active:false, revenue:1800 },
-  { id:'tiktok1', label:'TIKTOK-01', sublabel:'Content gen', active:false, revenue:800 },
-  { id:'tiktok2', label:'TIKTOK-02', sublabel:'Trend research', active:false, revenue:400 },
-  { id:'intel', label:'INTEL', sublabel:'Market analysis', active:false, revenue:0 },
-  { id:'finance', label:'FINANCE', sublabel:'Revenue tracking', active:false, revenue:0 },
+  { id:'etsy1', label:'ETSY-01', sub:'Print on demand', active:false, rev:3200 },
+  { id:'etsy2', label:'ETSY-02', sub:'Niche store', active:false, rev:1800 },
+  { id:'tiktok1', label:'TIKTOK-01', sub:'Content gen', active:false, rev:800 },
+  { id:'tiktok2', label:'TIKTOK-02', sub:'Trend research', active:false, rev:400 },
+  { id:'intel', label:'INTEL', sub:'Market analysis', active:false, rev:0 },
+  { id:'finance', label:'FINANCE', sub:'Revenue tracking', active:false, rev:0 },
 ]
 
 export default function App() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
   const [rooms, setRooms] = useState(DEFAULT_ROOMS)
-  const [log, setLog] = useState('// systeem gereed — klik een kamer om te activeren')
-  const [logFresh, setLogFresh] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -34,24 +32,19 @@ export default function App() {
     if (data && data.length > 0) {
       setRooms(prev => prev.map(r => { const s = data.find(d => d.id === r.id); return s ? { ...r, active: s.active } : r }))
     } else {
-      await supabase.from('agents').upsert(DEFAULT_ROOMS.map(r => ({ ...r, user_id: session.user.id })))
+      await supabase.from('agents').upsert(DEFAULT_ROOMS.map(r => ({ id: r.id, user_id: session.user.id, active: false, label: r.label, sublabel: r.sub, revenue: r.rev })))
     }
   }
 
   async function saveAgent(id, active) {
-    await supabase.from('agents').upsert({ id, user_id: session.user.id, active,
-      label: DEFAULT_ROOMS.find(r=>r.id===id)?.label || id,
-      sublabel: DEFAULT_ROOMS.find(r=>r.id===id)?.sublabel || '',
-      revenue: DEFAULT_ROOMS.find(r=>r.id===id)?.revenue || 0
-    })
+    const r = DEFAULT_ROOMS.find(x => x.id === id)
+    await supabase.from('agents').upsert({ id, user_id: session.user.id, active, label: r?.label || id, sublabel: r?.sub || '', revenue: r?.rev || 0 })
   }
 
   const handleToggle = useCallback((id) => {
     setRooms(prev => {
       const updated = prev.map(r => r.id === id ? { ...r, active: !r.active } : r)
-      const room = updated.find(r => r.id === id)
-      addLog(room.active ? `// ${room.label} — online` : `// ${room.label} — offline`)
-      if (session) saveAgent(id, room.active)
+      if (session) saveAgent(id, updated.find(r => r.id === id).active)
       return updated
     })
   }, [session])
@@ -60,56 +53,28 @@ export default function App() {
     setRooms(prev => {
       const updated = prev.map(r => ({ ...r, active: on }))
       updated.forEach(r => { if (session) saveAgent(r.id, on) })
-      addLog(on ? '// alle agents online' : '// alle agents offline')
       return updated
     })
   }
 
-  let logTimer
-  function addLog(msg) {
-    setLog(msg); setLogFresh(true)
-    clearTimeout(logTimer)
-    logTimer = setTimeout(() => setLogFresh(false), 2500)
-  }
-
   if (loading) return (
-    <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'var(--bg)' }}>
-      <div style={{ color:'var(--green)', fontFamily:'var(--font-mono)', fontSize:'12px', letterSpacing:'3px' }}>// LADEN...</div>
+    <div style={{ width:'100vw', height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#04080d' }}>
+      <div style={{ color:'#3fffa2', fontFamily:'monospace', fontSize:'14px', letterSpacing:'3px' }}>// LADEN...</div>
     </div>
   )
 
   if (!session) return <Login />
 
-  const activeCount = rooms.filter(r => r.active).length
-  const totalRev = rooms.filter(r => r.active).reduce((s, r) => s + r.revenue, 0)
-
   return (
-    <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', background:'var(--bg)', padding:'12px', gap:'10px' }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <div style={{ fontSize:'10px', color:'var(--muted)', letterSpacing:'2px' }}>// {session.user.email}</div>
-        <button onClick={() => supabase.auth.signOut()} style={{ background:'none', border:'1px solid rgba(239,68,68,0.3)', color:'rgba(239,68,68,0.7)', fontSize:'9px', letterSpacing:'2px', padding:'4px 10px', borderRadius:'2px' }}>UITLOGGEN</button>
-      </div>
-      <div style={{ flex:1, minHeight:'calc(100vh - 180px)', borderRadius:'4px', overflow:'hidden', border:'1px solid var(--border)' }}>
+    <div style={{ width:'100vw', height:'100vh', display:'flex', flexDirection:'column', background:'#04080d', overflow:'hidden' }}>
+      <div style={{ flex:1, position:'relative', minHeight:0 }}>
         <GameCanvas rooms={rooms} onToggle={handleToggle} />
       </div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
-        <div style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:'4px', padding:'10px 12px' }}>
-          <div style={{ fontSize:'9px', color:'var(--muted)', letterSpacing:'2px', marginBottom:'4px' }}>AGENTS ONLINE</div>
-          <div style={{ fontSize:'18px', fontFamily:'var(--font-display)', color:'var(--green)', fontWeight:700 }}>{activeCount}<span style={{ fontSize:'12px', color:'var(--muted)' }}>/{rooms.length}</span></div>
-        </div>
-        <div style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:'4px', padding:'10px 12px' }}>
-          <div style={{ fontSize:'9px', color:'var(--muted)', letterSpacing:'2px', marginBottom:'4px' }}>REVENUE MTD</div>
-          <div style={{ fontSize:'18px', fontFamily:'var(--font-display)', color:'var(--green)', fontWeight:700 }}>€{totalRev.toLocaleString('nl-NL')}</div>
-        </div>
-      </div>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'8px' }}>
-        <button onClick={() => toggleAll(true)} style={{ background:'transparent', border:'1px solid var(--green)', color:'var(--green)', fontSize:'10px', letterSpacing:'2px', padding:'10px', borderRadius:'2px' }}>[ ALLES AAN ]</button>
-        <button onClick={() => toggleAll(false)} style={{ background:'transparent', border:'1px solid rgba(239,68,68,0.5)', color:'rgba(239,68,68,0.7)', fontSize:'10px', letterSpacing:'2px', padding:'10px', borderRadius:'2px' }}>[ ALLES UIT ]</button>
-      </div>
-      <div style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:'4px', padding:'8px 12px' }}>
-        <p style={{ fontSize:'10px', letterSpacing:'1px', color: logFresh ? 'var(--green)' : 'var(--muted)' }}>
-          {log}{logFresh && <span style={{ animation:'blink 1s infinite', marginLeft:'4px' }}>_</span>}
-        </p>
+      <div style={{ display:'flex', gap:'8px', padding:'8px 12px', background:'rgba(4,8,13,0.95)', borderTop:'1px solid rgba(63,255,162,0.2)' }}>
+        <button onClick={() => supabase.auth.signOut()} style={{ background:'none', border:'1px solid rgba(239,68,68,0.4)', color:'rgba(239,68,68,0.7)', fontFamily:'monospace', fontSize:'10px', letterSpacing:'1px', padding:'4px 10px', cursor:'pointer' }}>UITLOGGEN</button>
+        <button onClick={() => toggleAll(true)} style={{ background:'none', border:'1px solid rgba(63,255,162,0.4)', color:'#3fffa2', fontFamily:'monospace', fontSize:'10px', letterSpacing:'1px', padding:'4px 10px', cursor:'pointer' }}>ALLES AAN</button>
+        <button onClick={() => toggleAll(false)} style={{ background:'none', border:'1px solid rgba(63,255,162,0.2)', color:'rgba(63,255,162,0.5)', fontFamily:'monospace', fontSize:'10px', letterSpacing:'1px', padding:'4px 10px', cursor:'pointer' }}>ALLES UIT</button>
+        <div style={{ marginLeft:'auto', color:'rgba(63,255,162,0.5)', fontFamily:'monospace', fontSize:'10px', letterSpacing:'1px', display:'flex', alignItems:'center' }}>{session.user.email}</div>
       </div>
     </div>
   )
